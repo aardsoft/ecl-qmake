@@ -1,0 +1,79 @@
+# this compiles lisp files into objects with ecl, and overrides the AR
+# variable to use ecl with a custom linker script to create a static
+# library
+
+# this is mainly here because qmake doesn't behave as documented about the
+# search path, and silently ignores extensions it can't find.
+message("Loading ECL feature")
+
+TEMPLATE = lib
+CONFIG += staticlib
+CONFIG -= qt
+
+isEmpty(ECL_INIT_NAME){
+  error("ECL_INIT_NAME is required. Format is init_lib_MY_LIB__ALL_SYSTEMS")
+}
+
+eclc.name = "ECL Compiler"
+eclc.input = ECL_SOURCES
+# output to regular object dir. This also should create correct object
+# files on Windows (.obj)
+eclc.output = $$OUT_PWD/${QMAKE_FILE_BASE}$${first(QMAKE_EXT_OBJ)}
+# just like a regular compiler, throw everything processed to $OBJECTS
+eclc.variable_out = OBJECTS
+
+# ecl --link is only usable for programs, so create a temporary linker
+# script we can call instead. It uses TARGET and ECL_INIT_NAME from
+# the project configuration.
+# arguments are: ("ecl" "--shell" "ecl_linker.lisp" "library-name" "first-object")
+# we only care about the objects
+ECL_LINKER_SCRIPT = "(require :asdf)\
+(c:build-static-library \"$$TARGET\"\
+                        :lisp-files (print (cddddr (si::command-args)))\
+                        :init-name \"$$ECL_INIT_NAME\")\
+"
+
+!write_file($$OUT_PWD/ecl_linker.lisp, ECL_LINKER_SCRIPT){
+  message("Unable to write ECL linker script")
+} else {
+  message($${ECL_LINKER_SCRIPT})
+}
+
+# set up the ecl compiler. Start with base binary..
+ECLC = "ecl"
+
+# .. attach --eval if ECL_EVAL is set. This will be evaluated before
+# compilation, and is useful for stuff like loading required libraries.
+# Note that this is executed for every file.
+!isEmpty(ECL_EVAL){
+  ECLC += --eval \'$$ECL_EVAL\'
+}
+
+# and finally check if we're supposed to load a file. We can only load
+# on single file, so if we'd like to load more we'd also need to implement
+# something with temporary files like for the linker
+!isEmpty(ECL_LOAD){
+  ECLC += --load $$_PRO_FILE_PWD_/$$ECL_LOAD
+}
+
+# combine it all into the compiler invocation
+eclc.commands = $$ECLC -o $$OUT_PWD/${QMAKE_FILE_BASE}$${first(QMAKE_EXT_OBJ)} -s -q --compile ${QMAKE_FILE_IN}
+
+# reister the compiler
+eclc.CONFIG = no_link target_predeps
+QMAKE_EXTRA_COMPILERS += eclc
+
+# clear some variables we don't care about
+QMAKE_LFLAGS =
+QMAKE_CFLAGS =
+QMAKE_LFLAGS_RPATH =
+QMAKE_LFLAGS_PLUGIN =
+QMAKE_LIBS =
+QMAKE_LIBS_OPENGL_ES2 =
+QMAKE_LIBDIR =
+
+# set up the static linker
+QMAKE_AR = ecl --shell $$OUT_PWD/ecl_linker.lisp
+
+# this can be used to force linking every time
+# PRE_TARGETDEPS += FORCE

@@ -1,0 +1,27 @@
+* Qmake Configuration Features for ECL/EQL                            :TOC_4:
+  - [[#introduction][Introduction]]
+  - [[#features][Features]]
+
+** Introduction
+
+This is a qmake extension to compile lisp files with [[https://common-lisp.net/project/ecl/][ecl]] and later [[https://gitlab.com/eql/EQL5][eql5]] from inside a qmake project.
+
+A simple configuration to compile a static library from just =core-init.lisp=, loading =EQL5-symbols.lisp= and =asdf= for the compilation would look like this:
+
+#+BEGIN_SRC
+CONFIG += ecl
+TARGET = core_init_lib
+ECL_SOURCES = core-init.lisp
+ECL_LOAD = EQL5-symbols.lisp
+ECL_EVAL = '(require :asdf)'
+ECL_INIT_NAME = init_lib_CORE_INIT__ALL_SYSTEMS
+#+END_SRC
+
+To use this the =QMAKEPATH= variable needs to point to a directory named =mkspecs/features= containing the .prf files. The documentation in [[https://doc.qt.io/qt-5/qmake-advanced-usage.html][Advanced qmake]] is wrong, it doesn't search at the top of the project directory.
+
+** Features
+
+- [ ] use =QMAKE_CC=/=QMAKE_AR=/... variables to generate a compiler/linker configuration file
+- [ ] add an eql profile with temporary scripts for compiling and linking
+- [ ] allow file specific lisp eval
+- [ ] allow multiple load files - due to load order adding them to eval isn't working
