@@ -22,44 +22,79 @@ eclc.output = $$OUT_PWD/${QMAKE_FILE_BASE}$${first(QMAKE_EXT_OBJ)}
 # just like a regular compiler, throw everything processed to $OBJECTS
 eclc.variable_out = OBJECTS
 
+isEmpty(ECL_CONFIG){
+  ECL_CONFIG = ecl-config
+}
+
+# collect toolchain specific settings in a separate file. Generally this
+# will be part of other scripts (like compiler or linker), but for debugging
+# it is useful to have that separate.
+ECL_TOOLCHAIN_SCRIPT = "(in-package :cl-user)"\
+"(require 'asdf)"\
+"(require 'cmp)"
+
+!isEmpty(ECL_INCLUDE_DIR){
+  ECL_TOOLCHAIN_SCRIPT += "(setf c::*ecl-include-directory* \"$$ECL_INCLUDE_DIR\")"
+}
+!isEmpty(ECL_LIB_DIR){
+  ECL_TOOLCHAIN_SCRIPT += "(setf c::*ecl-library-directory* \"$$ECL_LIB_DIR\")"
+}
+
+ECL_TOOLCHAIN_SCRIPT += \
+"(defun ecl-config (flags)"\
+"  (read-line (ext:run-program \"$$ECL_CONFIG\" (list flags))))"\
+"(setf c::*cc* \"$$QMAKE_CC\" "\
+"      c::*ld* \"$$QMAKE_LINK\" "\
+"      c::*ar*       \"$${first(QMAKE_AR)}\" "\
+"      c::*ranlib*   \"$$QMAKE_RANLIB\" "\
+"      c::*cc-flags* (concatenate 'string (ecl-config \"--cflags\") \" \" \"$$QMAKE_CFLAGS\") "\
+"      c::*ld-flags* \"$$QMAKE_LFLAGS\" "\
+"      c::*ld-rpath* nil "\
+"      c::*ld-shared-flags* (concatenate 'string \"-shared \" c::*ld-flags*) "\
+"      c::*ld-bundle-flags* c::*ld-shared-flags* "\
+)
+
+!isEmpty(ECL_LOAD){
+  ECL_TOOLCHAIN_SCRIPT += "(load \"$$_PRO_FILE_PWD_/$$ECL_LOAD\")"
+}
+
+!write_file($$OUT_PWD/ecl_toolchain.lisp, ECL_TOOLCHAIN_SCRIPT){
+  message("Unable to write ECL toolchain script")
+}
+
+# ecl --compile is fine for simple operations, but runs into issues with
+# multiple loads. It's therefore easier to just use a compile script, which
+# also makes it easier to embed additional code
+ECL_COMPILER_SCRIPT = "$$ECL_TOOLCHAIN_SCRIPT\
+(compile-file (cadddr (si::command-args)) :output-file (car (cddddr (si::command-args))) :system-p t :verbose t)"
+
+!write_file($$OUT_PWD/ecl_compiler.lisp, ECL_COMPILER_SCRIPT){
+  error("Unable to write ECL compiler script")
+}
+
 # ecl --link is only usable for programs, so create a temporary linker
 # script we can call instead. It uses TARGET and ECL_INIT_NAME from
 # the project configuration.
 # arguments are: ("ecl" "--shell" "ecl_linker.lisp" "library-name" "first-object")
 # we only care about the objects
-ECL_LINKER_SCRIPT = "(require :asdf)\
+ECL_LINKER_SCRIPT = "$$ECL_TOOLCHAIN_SCRIPT\
 (c:build-static-library \"$$TARGET\"\
-                        :lisp-files (print (cddddr (si::command-args)))\
+                        :lisp-files (cddddr (si::command-args))\
                         :init-name \"$$ECL_INIT_NAME\")\
 "
 
 !write_file($$OUT_PWD/ecl_linker.lisp, ECL_LINKER_SCRIPT){
-  message("Unable to write ECL linker script")
-} else {
-  message($${ECL_LINKER_SCRIPT})
+  error("Unable to write ECL linker script")
 }
 
-# set up the ecl compiler. Start with base binary..
-ECLC = "ecl"
-
-# .. attach --eval if ECL_EVAL is set. This will be evaluated before
-# compilation, and is useful for stuff like loading required libraries.
-# Note that this is executed for every file.
-!isEmpty(ECL_EVAL){
-  ECLC += --eval \'$$ECL_EVAL\'
+# set up the ecl compiler
+isEmpty(ECLC){
+  ECLC = "ecl"
 }
 
-# and finally check if we're supposed to load a file. We can only load
-# on single file, so if we'd like to load more we'd also need to implement
-# something with temporary files like for the linker
-!isEmpty(ECL_LOAD){
-  ECLC += --load $$_PRO_FILE_PWD_/$$ECL_LOAD
-}
+eclc.commands = $$ECLC --shell $$OUT_PWD/ecl_compiler.lisp ${QMAKE_FILE_IN} ${QMAKE_FILE_OUT}
 
-# combine it all into the compiler invocation
-eclc.commands = $$ECLC -o $$OUT_PWD/${QMAKE_FILE_BASE}$${first(QMAKE_EXT_OBJ)} -s -q --compile ${QMAKE_FILE_IN}
-
-# reister the compiler
+# register the compiler
 eclc.CONFIG = no_link target_predeps
 QMAKE_EXTRA_COMPILERS += eclc
 
@@ -73,7 +108,7 @@ QMAKE_LIBS_OPENGL_ES2 =
 QMAKE_LIBDIR =
 
 # set up the static linker
-QMAKE_AR = ecl --shell $$OUT_PWD/ecl_linker.lisp
+QMAKE_AR = $$ECLC --shell $$OUT_PWD/ecl_linker.lisp
 
 # this can be used to force linking every time
 # PRE_TARGETDEPS += FORCE

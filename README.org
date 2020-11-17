@@ -13,12 +13,26 @@ CONFIG += ecl
 TARGET = core_init_lib
 ECL_SOURCES = core-init.lisp
 ECL_LOAD = EQL5-symbols.lisp
-ECL_EVAL = '(require :asdf)'
 ECL_INIT_NAME = init_lib_CORE_INIT__ALL_SYSTEMS
 #+END_SRC
 
 To use this the =QMAKEPATH= variable needs to point to a directory named =mkspecs/features= containing the .prf files. The documentation in [[https://doc.qt.io/qt-5/qmake-advanced-usage.html][Advanced qmake]] is wrong, it doesn't search at the top of the project directory.
 
+** ECL configuration options
+*** ECLC
+Name or path to the =ecl= binary.
+*** ECL_CONFIG
+Name or path to the =ecl-config= binary.
+*** ECL_INCLUDE_DIR
+The path to ecls include directory.
+*** ECL_INIT_NAME (mandatory)
+Set the name of the initialization function.
+*** ECL_LIB_DIR
+The path to ecls lib directory.
+*** ECL_SOURCES (mandatory)
+A list of lisp sources to compile.
+*** ECL_LOAD
+A file to be loaded before compilation. It will be loaded directly after the toolchain definition.
 ** Features
 
 - [ ] use =QMAKE_CC=/=QMAKE_AR=/... variables to generate a compiler/linker configuration file
