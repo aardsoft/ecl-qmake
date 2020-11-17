@@ -5,6 +5,15 @@
 # this is mainly here because qmake doesn't behave as documented about the
 # search path, and silently ignores extensions it can't find.
 message("Loading ECL feature")
+isEmpty(ANDROID_TARGET_ARCH){
+  ECL_TARGET_PATH = $$OUT_PWD
+} else {
+  ECL_TARGET_PATH = $$OUT_PWD/$$ANDROID_TARGET_ARCH
+  TARGET = $$TARGET_$$ANDROID_TARGET_ARCH
+}
+ECL_TOOLCHAIN_PATH = $$ECL_TARGET_PATH/ecl_toolscript.lisp
+ECL_LINKSCRIPT_PATH = $$ECL_TARGET_PATH/ecl_linker.lisp
+ECL_COMPILESCRIPT_PATH = $$ECL_TARGET_PATH/ecl_compile.lisp
 
 TEMPLATE = lib
 CONFIG += staticlib
@@ -18,7 +27,7 @@ eclc.name = "ECL Compiler"
 eclc.input = ECL_SOURCES
 # output to regular object dir. This also should create correct object
 # files on Windows (.obj)
-eclc.output = $$OUT_PWD/${QMAKE_FILE_BASE}$${first(QMAKE_EXT_OBJ)}
+eclc.output = $$ECL_TARGET_PATH/${QMAKE_FILE_BASE}$${first(QMAKE_EXT_OBJ)}
 # just like a regular compiler, throw everything processed to $OBJECTS
 eclc.variable_out = OBJECTS
 
@@ -57,13 +66,21 @@ ECL_TOOLCHAIN_SCRIPT = "(in-package :cl-user)"\
    ECL_INCLUDE_FLAG += "\" -I$${include}\""
  }
 }
+
+# this is relevant for android, but typically empty otherwise
+isEmpty(QMAKE_RANLIB){
+  ECL_RANLIB = nil
+} else {
+  ECL_RANLIB = "\"$$QMAKE_RANLIB\""
+}
+
 ECL_TOOLCHAIN_SCRIPT += \
 "(defun ecl-config (flags)"\
 "  (read-line (ext:run-program \"$$ECL_CONFIG\" (list flags))))"\
 "(setf c::*cc* \"$$QMAKE_CC\" "\
 "      c::*ld* \"$$QMAKE_LINK\" "\
 "      c::*ar*       \"$${first(QMAKE_AR)}\" "\
-"      c::*ranlib*   \"$$QMAKE_RANLIB\" "\
+"      c::*ranlib*   $$ECL_RANLIB "\
 "      c::*cc-flags* (concatenate 'string (ecl-config \"--cflags\") \" \" \"$$QMAKE_CFLAGS\" \" \" $$ECL_INCLUDE_FLAG)"\
 "      c::*ld-flags* \"$$QMAKE_LFLAGS\" "\
 "      c::*ld-rpath* nil "\
@@ -75,7 +92,7 @@ ECL_TOOLCHAIN_SCRIPT += \
   ECL_TOOLCHAIN_SCRIPT += "(load \"$$_PRO_FILE_PWD_/$$ECL_LOAD\")"
 }
 
-!write_file($$OUT_PWD/ecl_toolchain.lisp, ECL_TOOLCHAIN_SCRIPT){
+!write_file($$ECL_TOOLCHAIN_PATH, ECL_TOOLCHAIN_SCRIPT){
   message("Unable to write ECL toolchain script")
 }
 
@@ -85,7 +102,7 @@ ECL_TOOLCHAIN_SCRIPT += \
 ECL_COMPILER_SCRIPT = "$$ECL_TOOLCHAIN_SCRIPT\
 (compile-file (cadddr (si::command-args)) :output-file (car (cddddr (si::command-args))) :system-p t :verbose t)"
 
-!write_file($$OUT_PWD/ecl_compiler.lisp, ECL_COMPILER_SCRIPT){
+!write_file($$ECL_COMPILESCRIPT_PATH, ECL_COMPILER_SCRIPT){
   error("Unable to write ECL compiler script")
 }
 
@@ -100,7 +117,7 @@ ECL_LINKER_SCRIPT = "$$ECL_TOOLCHAIN_SCRIPT\
                         :init-name \"$$ECL_INIT_NAME\")\
 "
 
-!write_file($$OUT_PWD/ecl_linker.lisp, ECL_LINKER_SCRIPT){
+!write_file($$ECL_LINKSCRIPT_PATH, ECL_LINKER_SCRIPT){
   error("Unable to write ECL linker script")
 }
 
@@ -109,7 +126,7 @@ isEmpty(ECLC){
   ECLC = "ecl"
 }
 
-eclc.commands = $$ECLC --shell $$OUT_PWD/ecl_compiler.lisp ${QMAKE_FILE_IN} ${QMAKE_FILE_OUT}
+eclc.commands = $$ECLC --shell $$ECL_COMPILESCRIPT_PATH ${QMAKE_FILE_IN} ${QMAKE_FILE_OUT}
 
 # register the compiler
 eclc.CONFIG = no_link target_predeps
@@ -125,7 +142,7 @@ QMAKE_LIBS_OPENGL_ES2 =
 QMAKE_LIBDIR =
 
 # set up the static linker
-QMAKE_AR = $$ECLC --shell $$OUT_PWD/ecl_linker.lisp
+QMAKE_AR = $$ECLC --shell $$ECL_LINKSCRIPT_PATH
 
 # this can be used to force linking every time
 # PRE_TARGETDEPS += FORCE
