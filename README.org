@@ -23,8 +23,12 @@ To use this the =QMAKEPATH= variable needs to point to a directory named =mkspec
 Name or path to the =ecl= binary.
 *** ECL_CONFIG
 Name or path to the =ecl-config= binary.
+*** ECL_FEATURES
+A list of symbols to push to the =*features*= variable.
 *** ECL_INCLUDE_DIR
 The path to ecls include directory.
+*** ECL_INCLUDES
+A list of directories added to the include path of the C compiler.
 *** ECL_INIT_NAME (mandatory)
 Set the name of the initialization function.
 *** ECL_LIB_DIR
@@ -33,6 +37,8 @@ The path to ecls lib directory.
 A list of lisp sources to compile.
 *** ECL_LOAD
 A file to be loaded before compilation. It will be loaded directly after the toolchain definition.
+*** ECL_REQUIRES
+A list of packages to require at the very beginning of the compile or linker script.
 ** Features
 
 - [ ] use =QMAKE_CC=/=QMAKE_AR=/... variables to generate a compiler/linker configuration file

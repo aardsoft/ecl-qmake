@@ -33,6 +33,18 @@ ECL_TOOLCHAIN_SCRIPT = "(in-package :cl-user)"\
 "(require 'asdf)"\
 "(require 'cmp)"
 
+!isEmpty(ECL_FEATURES){
+  for(feature, ECL_FEATURES): {
+    ECL_TOOLCHAIN_SCRIPT += "(pushnew :"$${feature}" *features*)"
+  }
+}
+
+!isEmpty(ECL_REQUIRES){
+  for(require, ECL_REQUIRES): {
+    ECL_TOOLCHAIN_SCRIPT += "(require '"$${require}")"
+  }
+}
+
 !isEmpty(ECL_INCLUDE_DIR){
   ECL_TOOLCHAIN_SCRIPT += "(setf c::*ecl-include-directory* \"$$ECL_INCLUDE_DIR\")"
 }
@@ -40,6 +52,11 @@ ECL_TOOLCHAIN_SCRIPT = "(in-package :cl-user)"\
   ECL_TOOLCHAIN_SCRIPT += "(setf c::*ecl-library-directory* \"$$ECL_LIB_DIR\")"
 }
 
+!isEmpty(ECL_INCLUDES){
+ for(include, ECL_INCLUDES): {
+   ECL_INCLUDE_FLAG += "\" -I$${include}\""
+ }
+}
 ECL_TOOLCHAIN_SCRIPT += \
 "(defun ecl-config (flags)"\
 "  (read-line (ext:run-program \"$$ECL_CONFIG\" (list flags))))"\
@@ -47,7 +64,7 @@ ECL_TOOLCHAIN_SCRIPT += \
 "      c::*ld* \"$$QMAKE_LINK\" "\
 "      c::*ar*       \"$${first(QMAKE_AR)}\" "\
 "      c::*ranlib*   \"$$QMAKE_RANLIB\" "\
-"      c::*cc-flags* (concatenate 'string (ecl-config \"--cflags\") \" \" \"$$QMAKE_CFLAGS\") "\
+"      c::*cc-flags* (concatenate 'string (ecl-config \"--cflags\") \" \" \"$$QMAKE_CFLAGS\" \" \" $$ECL_INCLUDE_FLAG)"\
 "      c::*ld-flags* \"$$QMAKE_LFLAGS\" "\
 "      c::*ld-rpath* nil "\
 "      c::*ld-shared-flags* (concatenate 'string \"-shared \" c::*ld-flags*) "\
